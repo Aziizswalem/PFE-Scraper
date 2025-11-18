@@ -5,15 +5,13 @@ from openpyxl import load_workbook
 from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.styles import PatternFill
 from openpyxl.formatting.rule import FormulaRule
-
+import os  # Import the 'os' library to check if the file exists
 
 API_URL = "https://pfebooks.com/wp-json/wp/v2/posts"
 OUTPUT_FILE = "entreprises_pfe.xlsx"
 HEADERS = {"User-Agent": "Mozilla/5.0"}
 
-# -----------------------------------------------------
-# SCRAPER
-# -----------------------------------------------------
+
 async def fetch_page(client, page):
     """Fetches a single page of posts from the API."""
     try:
@@ -28,7 +26,7 @@ async def fetch_page(client, page):
         return []
 
 async def scrape_all():
-    """Scrapes all posts and returns them as a list of dictionaries."""
+    """Scrapes all post titles and returns them as a list of strings."""
     results = []
     async with httpx.AsyncClient(headers=HEADERS) as client:
         page = 1
@@ -39,57 +37,84 @@ async def scrape_all():
                 break
             for item in data:
                 title = item.get("title", {}).get("rendered", "No Title")
-                results.append({
-                    "Name": title,
-                    "Project Submitted": "",
-                    "Response": "",
-                    "Statut": "Non fait"
-                })
+                results.append(title)  # Just get the names for now
             print(f"Page {page} scraped successfully.")
-            page += 1
     print(f"Scraping finished. Found {len(results)} items.")
     return results
 
-# -----------------------------------------------------
-# EXCEL BUILDER
-# -----------------------------------------------------
-def save_excel(items):
-    """Saves the list of items to a formatted Excel file."""
-    if not items:
-        print("No items to save. Excel file not generated.")
-        return
-    df = pd.DataFrame(items)
-    df.to_excel(OUTPUT_FILE, index=False)
+
+# --- This function has been completely rewritten to be "smart" ---
+def save_excel(scraped_names):
+    """
+    Updates the Excel file by adding only new companies,
+    preserving all existing data and modifications.
+    """
+    
+    # --- Step 1: Read the existing Excel file (if it exists) ---
+    existing_names = set()
+    if os.path.exists(OUTPUT_FILE):
+        print(f"Found existing file: {OUTPUT_FILE}. Reading its content.")
+        try:
+            existing_df = pd.read_excel(OUTPUT_FILE)
+            # Store existing names in a set for fast lookups
+            existing_names = set(existing_df['Name'].tolist())
+        except Exception as e:
+            print(f"Could not read the existing Excel file. A new one will be created. Error: {e}")
+            existing_df = pd.DataFrame(columns=["Name", "Project Submitted", "Response", "Statut"])
+    else:
+        print("No existing Excel file found. A new one will be created.")
+        existing_df = pd.DataFrame(columns=["Name", "Project Submitted", "Response", "Statut"])
+
+    # --- Step 2: Find only the truly new companies ---
+    new_companies_to_add = []
+    for name in scraped_names:
+        if name not in existing_names:
+            new_companies_to_add.append({
+                "Name": name,
+                "Project Submitted": "",
+                "Response": "",
+                "Statut": "Non fait"
+            })
+
+    if not new_companies_to_add:
+        print("No new companies found. The Excel file is already up-to-date.")
+        return  # Stop if there's nothing to do
+
+    print(f"Found {len(new_companies_to_add)} new companies to add.")
+
+    # --- Step 3: Append the new companies to the existing data ---
+    new_df = pd.DataFrame(new_companies_to_add)
+    final_df = pd.concat([existing_df, new_df], ignore_index=True)
+
+    # --- Step 4: Save and format the updated file ---
+    final_df.to_excel(OUTPUT_FILE, index=False)
+    
     wb = load_workbook(OUTPUT_FILE)
     ws = wb.active
     RED_FILL = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
     GREEN_FILL = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
     dv = DataValidation(type="list", formula1='"Non fait,Fait"')
-    ws.add_data_validation(dv)
-    dv.add("D2:D" + str(ws.max_row))
-    formatting_range = "A2:D" + str(ws.max_row)
-    ws.conditional_formatting.add(
-        formatting_range,
-        FormulaRule(formula=['$D2="Fait"'], fill=GREEN_FILL)
-    )
-    ws.conditional_formatting.add(
-        formatting_range,
-        FormulaRule(formula=['$D2="Non fait"'], fill=RED_FILL)
-    )
+    
+    # Apply formatting and validation to a large range to account for future additions
+    max_row_buffer = ws.max_row + 500
+    dv.add(f"D2:D{max_row_buffer}")
+    formatting_range = f"A2:D{max_row_buffer}"
+    ws.conditional_formatting.add(formatting_range, FormulaRule(formula=['$D2="Fait"'], fill=GREEN_FILL))
+    ws.conditional_formatting.add(formatting_range, FormulaRule(formula=['$D2="Non fait"'], fill=RED_FILL))
+    
     ws.column_dimensions['A'].width = 40
     ws.column_dimensions['B'].width = 30
     ws.column_dimensions['C'].width = 30
     ws.column_dimensions['D'].width = 15
+    
     wb.save(OUTPUT_FILE)
-    print(f"✔ Excel generated successfully: {OUTPUT_FILE}")
+    print(f"✔ Excel file updated successfully: {OUTPUT_FILE}")
 
-# -----------------------------------------------------
-# MAIN
-# -----------------------------------------------------
+
 async def main():
     """Main function to run the scraper and Excel builder."""
-    items = await scrape_all()
-    save_excel(items)
+    scraped_names = await scrape_all()
+    save_excel(scraped_names)
 
 if __name__ == "__main__":
     asyncio.run(main())
