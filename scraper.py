@@ -1,1 +1,103 @@
-{"metadata":{"kernelspec":{"language":"python","display_name":"Python 3","name":"python3"},"language_info":{"name":"python","version":"3.11.13","mimetype":"text/x-python","codemirror_mode":{"name":"ipython","version":3},"pygments_lexer":"ipython3","nbconvert_exporter":"python","file_extension":".py"},"kaggle":{"accelerator":"none","dataSources":[],"dockerImageVersionId":31192,"isInternetEnabled":true,"language":"python","sourceType":"script","isGpuEnabled":false}},"nbformat_minor":4,"nbformat":4,"cells":[{"cell_type":"code","source":"# %% [code] {\"execution\":{\"iopub.status.busy\":\"2025-11-17T23:36:02.097981Z\",\"iopub.execute_input\":\"2025-11-17T23:36:02.098366Z\",\"iopub.status.idle\":\"2025-11-17T23:36:08.516552Z\",\"shell.execute_reply.started\":\"2025-11-17T23:36:02.098333Z\",\"shell.execute_reply\":\"2025-11-17T23:36:08.515383Z\"},\"jupyter\":{\"outputs_hidden\":false}}\n!pip install nest_asyncio pandas openpyxl httpx\n\nimport asyncio\nimport nest_asyncio\nnest_asyncio.apply()\n\nimport httpx\nimport pandas as pd\nfrom openpyxl import load_workbook\nfrom openpyxl.worksheet.datavalidation import DataValidation\nfrom openpyxl.styles import PatternFill\nfrom openpyxl.formatting.rule import FormulaRule\n\n\nAPI_URL = \"https://pfebooks.com/wp-json/wp/v2/posts\"\nOUTPUT_FILE = \"entreprises_pfe.xlsx\"\nHEADERS = {\"User-Agent\": \"Mozilla/5.0\"}\n\n\n# -----------------------------------------------------\n# SCRAPER\n# -----------------------------------------------------\nasync def fetch_page(client, page):\n    \"\"\"Fetches a single page of posts from the API.\"\"\"\n    try:\n        # Increased timeout for potentially slow API responses\n        r = await client.get(API_URL, params={\"per_page\": 100, \"page\": page}, timeout=30)\n        r.raise_for_status()  # Raises an exception for bad status codes (4xx or 5xx)\n        return r.json()\n    except httpx.RequestError as e:\n        print(f\"An error occurred while requesting page {page}: {e}\")\n        return []\n    except Exception as e:\n        print(f\"An unexpected error occurred on page {page}: {e}\")\n        return []\n\n\nasync def scrape_all():\n    \"\"\"Scrapes all posts and returns them as a list of dictionaries.\"\"\"\n    results = []\n    async with httpx.AsyncClient(headers=HEADERS) as client:\n        page = 1\n        print(\"Starting scraping...\")\n        while True:\n            data = await fetch_page(client, page)\n            # Stop if the page is empty or an error occurred\n            if not data:\n                break\n\n            for item in data:\n                # Ensure title is handled safely\n                title = item.get(\"title\", {}).get(\"rendered\", \"No Title\")\n\n                results.append({\n                    \"Name\": title,\n                    \"Project Submitted\": \"\",  # Empty for user to fill\n                    \"Response\": \"\",           # Empty for user to fill\n                    \"Statut\": \"Non fait\"      # Default value\n                })\n\n            print(f\"Page {page} scraped successfully.\")\n            page += 1\n    print(f\"Scraping finished. Found {len(results)} items.\")\n    return results\n\n\n# -----------------------------------------------------\n# EXCEL BUILDER\n# -----------------------------------------------------\ndef save_excel(items):\n    \"\"\"Saves the list of items to a formatted Excel file.\"\"\"\n    if not items:\n        print(\"No items to save. Excel file not generated.\")\n        return\n\n    df = pd.DataFrame(items)\n    df.to_excel(OUTPUT_FILE, index=False)\n\n    # Load the workbook and select the active worksheet\n    wb = load_workbook(OUTPUT_FILE)\n    ws = wb.active\n\n    # Define fill colors for conditional formatting\n    RED_FILL = PatternFill(start_color=\"FFC7CE\", end_color=\"FFC7CE\", fill_type=\"solid\") # Light Red\n    GREEN_FILL = PatternFill(start_color=\"C6EFCE\", end_color=\"C6EFCE\", fill_type=\"solid\") # Light Green\n\n    # --------------------------\n    # Dropdown for 'Statut' column\n    # --------------------------\n    dv = DataValidation(type=\"list\", formula1='\"Non fait,Fait\"')\n    # Add the validation to all cells in the 'Statut' column (D)\n    ws.add_data_validation(dv)\n    dv.add(\"D2:D\" + str(ws.max_row))\n\n    # --------------------------\n    # Conditional Formatting Rules\n    # --------------------------\n    # The range covers all data from row 2 to the end\n    formatting_range = \"A2:D\" + str(ws.max_row)\n\n    # Rule for \"Fait\" (Green)\n    # The formula '$D2=\"Fait\"' checks the value in column D for each row.\n    # The '$' makes the column absolute, so A, B, and C cells in a row look at column D.\n    ws.conditional_formatting.add(\n        formatting_range,\n        FormulaRule(formula=['$D2=\"Fait\"'], fill=GREEN_FILL)\n    )\n\n    # Rule for \"Non fait\" (Red)\n    ws.conditional_formatting.add(\n        formatting_range,\n        FormulaRule(formula=['$D2=\"Non fait\"'], fill=RED_FILL)\n    )\n\n    # Adjust column widths for better readability\n    ws.column_dimensions['A'].width = 40\n    ws.column_dimensions['B'].width = 30\n    ws.column_dimensions['C'].width = 30\n    ws.column_dimensions['D'].width = 15\n\n    # Save the final workbook\n    wb.save(OUTPUT_FILE)\n    print(f\"✔ Excel generated successfully: {OUTPUT_FILE}\")\n\n\n# -----------------------------------------------------\n# MAIN\n# -----------------------------------------------------\nasync def main():\n    \"\"\"Main function to run the scraper and Excel builder.\"\"\"\n    items = await scrape_all()\n    save_excel(items)\n\n# This is the standard way to run an async main function\nif __name__ == \"__main__\":\n    asyncio.run(main())\n\n# If you are in a Jupyter Notebook, you can uncomment the line below and run it instead\n# await main()","metadata":{"_uuid":"42da14b7-32c8-4c2b-bf90-7455cfe32095","_cell_guid":"6860fbd0-5e46-4e7a-b20a-634a0265c51b","trusted":true,"collapsed":false,"jupyter":{"outputs_hidden":false}},"outputs":[],"execution_count":null}]}
+# No longer needed, so it's best to remove it
+# import nest_asyncio
+import asyncio
+import httpx
+import pandas as pd
+from openpyxl import load_workbook
+from openpyxl.worksheet.datavalidation import DataValidation
+from openpyxl.styles import PatternFill
+from openpyxl.formatting.rule import FormulaRule
+
+# This line is not needed in a standard script
+# nest_asyncio.apply()
+
+API_URL = "https://pfebooks.com/wp-json/wp/v2/posts"
+OUTPUT_FILE = "entreprises_pfe.xlsx"
+HEADERS = {"User-Agent": "Mozilla/5.0"}
+
+# ... (the rest of your scraper and save_excel functions are perfect, no changes needed there) ...
+
+# -----------------------------------------------------
+# SCRAPER
+# -----------------------------------------------------
+async def fetch_page(client, page):
+    """Fetches a single page of posts from the API."""
+    try:
+        r = await client.get(API_URL, params={"per_page": 100, "page": page}, timeout=30)
+        r.raise_for_status()
+        return r.json()
+    except httpx.RequestError as e:
+        print(f"An error occurred while requesting page {page}: {e}")
+        return []
+    except Exception as e:
+        print(f"An unexpected error occurred on page {page}: {e}")
+        return []
+
+async def scrape_all():
+    """Scrapes all posts and returns them as a list of dictionaries."""
+    results = []
+    async with httpx.AsyncClient(headers=HEADERS) as client:
+        page = 1
+        print("Starting scraping...")
+        while True:
+            data = await fetch_page(client, page)
+            if not data:
+                break
+            for item in data:
+                title = item.get("title", {}).get("rendered", "No Title")
+                results.append({
+                    "Name": title,
+                    "Project Submitted": "",
+                    "Response": "",
+                    "Statut": "Non fait"
+                })
+            print(f"Page {page} scraped successfully.")
+            page += 1
+    print(f"Scraping finished. Found {len(results)} items.")
+    return results
+
+# -----------------------------------------------------
+# EXCEL BUILDER
+# -----------------------------------------------------
+def save_excel(items):
+    """Saves the list of items to a formatted Excel file."""
+    if not items:
+        print("No items to save. Excel file not generated.")
+        return
+    df = pd.DataFrame(items)
+    df.to_excel(OUTPUT_FILE, index=False)
+    wb = load_workbook(OUTPUT_FILE)
+    ws = wb.active
+    RED_FILL = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
+    GREEN_FILL = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
+    dv = DataValidation(type="list", formula1='"Non fait,Fait"')
+    ws.add_data_validation(dv)
+    dv.add("D2:D" + str(ws.max_row))
+    formatting_range = "A2:D" + str(ws.max_row)
+    ws.conditional_formatting.add(
+        formatting_range,
+        FormulaRule(formula=['$D2="Fait"'], fill=GREEN_FILL)
+    )
+    ws.conditional_formatting.add(
+        formatting_range,
+        FormulaRule(formula=['$D2="Non fait"'], fill=RED_FILL)
+    )
+    ws.column_dimensions['A'].width = 40
+    ws.column_dimensions['B'].width = 30
+    ws.column_dimensions['C'].width = 30
+    ws.column_dimensions['D'].width = 15
+    wb.save(OUTPUT_FILE)
+    print(f"✔ Excel generated successfully: {OUTPUT_FILE}")
+
+# -----------------------------------------------------
+# MAIN
+# -----------------------------------------------------
+async def main():
+    """Main function to run the scraper and Excel builder."""
+    items = await scrape_all()
+    save_excel(items)
+
+# THIS IS THE CORRECTED PART
+# Use this standard block to run the async main function
+if __name__ == "__main__":
+    asyncio.run(main())
