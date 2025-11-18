@@ -1,0 +1,35 @@
+name: Scrape PFE Books Daily
+
+on:
+  schedule:
+    # Runs every day at 03:00 UTC (you can change the time)
+    - cron: '0 3 * * *'
+  workflow_dispatch: # Allows you to run it manually from the Actions tab
+
+jobs:
+  build-and-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install Dependencies
+        run: pip install pandas openpyxl httpx nest_asyncio
+
+      - name: Run the Scraper
+        # Make sure your python script is named 'scraper.py'
+        run: python scraper.py
+
+      - name: Commit and Push Updated Excel File
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git add entreprises_pfe.xlsx
+          # Only commit if there are changes to the file
+          git diff --staged --quiet || git commit -m "Update Excel file with latest data"
+          git push
