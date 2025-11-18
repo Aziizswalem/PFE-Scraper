@@ -1,5 +1,3 @@
-# No longer needed, so it's best to remove it
-# import nest_asyncio
 import asyncio
 import httpx
 import pandas as pd
@@ -8,14 +6,10 @@ from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.styles import PatternFill
 from openpyxl.formatting.rule import FormulaRule
 
-# This line is not needed in a standard script
-# nest_asyncio.apply()
 
 API_URL = "https://pfebooks.com/wp-json/wp/v2/posts"
 OUTPUT_FILE = "entreprises_pfe.xlsx"
 HEADERS = {"User-Agent": "Mozilla/5.0"}
-
-# ... (the rest of your scraper and save_excel functions are perfect, no changes needed there) ...
 
 # -----------------------------------------------------
 # SCRAPER
@@ -97,7 +91,5 @@ async def main():
     items = await scrape_all()
     save_excel(items)
 
-# THIS IS THE CORRECTED PART
-# Use this standard block to run the async main function
 if __name__ == "__main__":
     asyncio.run(main())
